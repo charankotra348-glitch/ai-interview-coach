@@ -1,0 +1,52 @@
+import json
+import logging
+import time
+import uuid
+
+from fastapi import FastAPI, Request
+
+from app.api import health
+from app.config import settings
+
+logging.basicConfig(level=settings.log_level, format="%(message)s")
+logger = logging.getLogger("app")
+
+
+def create_app() -> FastAPI:
+    app = FastAPI(title=settings.app_name, version=settings.version)
+
+    @app.middleware("http")
+    async def request_metrics(request: Request, call_next):
+        supplied_id = request.headers.get("x-request-id", "")
+        valid_id = (
+            0 < len(supplied_id) <= 128
+            and supplied_id.isascii()
+            and all(c.isalnum() or c in "-_." for c in supplied_id)
+        )
+        request_id = supplied_id if valid_id else str(uuid.uuid4())
+        start = time.perf_counter()
+        status_code = 500
+
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+            duration_ms = (time.perf_counter() - start) * 1000
+            response.headers["X-Request-ID"] = request_id
+            response.headers["X-Response-Time-ms"] = f"{duration_ms:.2f}"
+            return response
+        finally:
+            duration_ms = (time.perf_counter() - start) * 1000
+            logger.info(json.dumps({
+                "event": "request",
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.url.path,
+                "status": status_code,
+                "duration_ms": round(duration_ms, 2),
+            }))
+
+    app.include_router(health.router)
+    return app
+
+
+app = create_app()
