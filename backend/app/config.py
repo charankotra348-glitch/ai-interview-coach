@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     version: str = "0.1.0"
     environment: str = "local"
     log_level: str = "INFO"
+    database_url: str = "postgresql+psycopg://coach:coach@localhost:5433/coach"
 
 
 settings = Settings()
