@@ -29,7 +29,9 @@ class ProviderAuthError(LLMError):
 
 
 class LLMCallFailed(Exception):
-    def __init__(self, error_type: str, attempts: int):
-        super().__init__(f"LLM call failed after {attempts} attempt(s): {error_type}")
+    def __init__(self, error_type: str, attempts: int, *, budget_exhausted: bool = False):
+        reason = " (time budget exhausted)" if budget_exhausted else ""
+        super().__init__(f"LLM call failed after {attempts} attempt(s): {error_type}{reason}")
         self.error_type = error_type
         self.attempts = attempts
+        self.budget_exhausted = budget_exhausted

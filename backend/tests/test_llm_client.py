@@ -4,12 +4,14 @@ from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
+
 from app.llm.client import LLMClient
 from app.llm.errors import (
     LLMCallFailed,
     ProviderRateLimited,
     ProviderRequestError,
     ProviderTimeout,
+    ProviderUnavailable,
 )
 from app.llm.fake import FakeProvider
 from app.llm.pricing import ModelPrice, PriceTable, load_price_table
@@ -34,14 +36,16 @@ def request(**overrides):
 def make_client(script=None, **kwargs):
     provider = FakeProvider(script)
     records, sleeps = [], []
-    client = LLMClient(
-        provider,
+    options = dict(
         model="fake-1",
         prices=PRICES,
         recorder=records.append,
         sleep=sleeps.append,
-        **kwargs,
+        backoff_s=0.5,
+        jitter=lambda d: d,
     )
+    options.update(kwargs)
+    client = LLMClient(provider, **options)
     return client, provider, records, sleeps
 
 
@@ -93,8 +97,6 @@ def test_shipped_price_table_loads():
 
 
 def test_purpose_longer_than_column_is_rejected():
-    from pydantic import ValidationError
-
     with pytest.raises(ValidationError):
         request(purpose="x" * 41)
 
@@ -161,6 +163,108 @@ def test_provider_receives_configured_model_and_timeout():
 def test_invalid_max_attempts_rejected():
     with pytest.raises(ValueError):
         LLMClient(FakeProvider(), model="fake-1", prices=PRICES, max_attempts=0)
+
+
+def test_default_jitter_keeps_delay_between_half_and_full():
+    sleeps = []
+    client = LLMClient(
+        FakeProvider([ProviderUnavailable(), ProviderUnavailable(), ProviderUnavailable()]),
+        model="fake-1", prices=PRICES, sleep=sleeps.append,
+    )
+    with pytest.raises(LLMCallFailed):
+        client.complete(request())
+    first, second = sleeps
+    assert 1.0 <= first <= 2.0      # base 2s, jittered
+    assert 2.0 <= second <= 4.0     # doubled, jittered
+
+
+# --- time budget ---------------------------------------------------------------
+
+class FakeClock:
+    def __init__(self):
+        self.now = 0.0
+
+    def __call__(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += seconds
+
+
+class SlowProvider(FakeProvider):
+    """Each call 'takes' a fixed number of simulated seconds."""
+
+    def __init__(self, clock: FakeClock, seconds: float, script):
+        super().__init__(script)
+        self.clock = clock
+        self.seconds = seconds
+
+    def complete(self, request, *, model, timeout_s):
+        self.clock.advance(self.seconds)
+        return super().complete(request, model=model, timeout_s=timeout_s)
+
+
+def budget_client(provider, clock, **kwargs):
+    return LLMClient(
+        provider, model="fake-1", prices=PRICES,
+        timeout_s=60.0, backoff_s=2.0, jitter=lambda d: d,
+        sleep=clock.advance, clock=clock, **kwargs,
+    )
+
+
+def test_budget_stops_retries_that_cannot_finish():
+    clock = FakeClock()
+    provider = SlowProvider(clock, 20, [ProviderUnavailable()] * 3)
+    client = budget_client(provider, clock, budget_s=45)
+
+    with pytest.raises(LLMCallFailed) as exc_info:
+        client.complete(request())
+
+    # t=0: attempt 1 (20s) -> t=22 after 2s wait: attempt 2 (20s) -> t=42.
+    # A third attempt would need 4s wait + 10s minimum: past the 45s deadline.
+    assert exc_info.value.attempts == 2
+    assert exc_info.value.budget_exhausted is True
+    assert clock.now <= 45
+
+
+def test_each_attempt_timeout_shrinks_to_the_remaining_budget():
+    clock = FakeClock()
+    provider = SlowProvider(clock, 20, [ProviderUnavailable()] * 3)
+    client = budget_client(provider, clock, budget_s=45)
+    with pytest.raises(LLMCallFailed):
+        client.complete(request())
+    assert [c["timeout_s"] for c in provider.calls] == [45, 23]
+
+
+def test_call_within_budget_succeeds_normally():
+    clock = FakeClock()
+    ok = ProviderResponse(text="ok", model="fake-1", input_tokens=1, output_tokens=1)
+    provider = SlowProvider(clock, 5, [ProviderUnavailable(), ok])
+    client = budget_client(provider, clock, budget_s=45)
+    assert client.complete(request()).attempts == 2
+
+
+def test_budget_can_be_overridden_per_call():
+    clock = FakeClock()
+    provider = SlowProvider(clock, 12, [ProviderUnavailable()] * 3)
+    client = budget_client(provider, clock, budget_s=45)
+    with pytest.raises(LLMCallFailed) as exc_info:
+        client.complete(request(), budget_s=20)
+    assert exc_info.value.attempts == 1        # 12s used; 2s wait + 10s min > 20s
+    assert exc_info.value.budget_exhausted is True
+
+
+def test_budget_below_minimum_attempt_is_rejected():
+    with pytest.raises(ValueError):
+        LLMClient(FakeProvider(), model="fake-1", prices=PRICES, budget_s=5)
+
+
+def test_no_budget_keeps_previous_behavior():
+    client, _, records, _ = make_client([ProviderUnavailable()] * 3)
+    with pytest.raises(LLMCallFailed) as exc_info:
+        client.complete(request())
+    assert exc_info.value.attempts == 3
+    assert exc_info.value.budget_exhausted is False
 
 
 # --- architecture rule (decision 002) ----------------------------------------

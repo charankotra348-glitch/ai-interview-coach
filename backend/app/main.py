@@ -67,7 +67,10 @@ def create_app() -> FastAPI:
     @app.exception_handler(LLMCallFailed)
     async def llm_unavailable(request: Request, exc: LLMCallFailed):
         logger.warning(json.dumps({
-            "event": "llm_call_failed", "error_type": exc.error_type, "attempts": exc.attempts,
+            "event": "llm_call_failed",
+            "error_type": exc.error_type,
+            "attempts": exc.attempts,
+            "budget_exhausted": exc.budget_exhausted,
         }))
         return _error(503, "ai_unavailable",
                       "The AI service is busy. Please try again in a few minutes.",

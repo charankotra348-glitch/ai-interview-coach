@@ -27,4 +27,5 @@ def build_llm_client() -> LLMClient:
         recorder=database_recorder(SessionLocal),
         timeout_s=settings.llm_timeout_s,
         max_attempts=settings.llm_max_attempts,
+        budget_s=settings.llm_budget_s,
     )

@@ -1,5 +1,6 @@
 import json
 import logging
+import random
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -48,6 +49,10 @@ def usage_from(response: ProviderResponse) -> Usage:
     )
 
 
+def _full_jitter_half(delay: float) -> float:
+    return delay * random.uniform(0.5, 1.0)
+
+
 class LLMClient:
     def __init__(
         self,
@@ -58,11 +63,16 @@ class LLMClient:
         recorder: Recorder | None = None,
         timeout_s: float = 30.0,
         max_attempts: int = 3,
-        backoff_s: float = 0.5,
+        backoff_s: float = 2.0,
+        budget_s: float | None = None,
+        min_attempt_s: float = 10.0,
+        jitter: Callable[[float], float] = _full_jitter_half,
         sleep: Callable[[float], None] = time.sleep,
+        clock: Callable[[], float] = time.monotonic,
     ):
         if max_attempts < 1:
             raise ValueError("max_attempts must be at least 1")
+        self._check_budget(budget_s, min_attempt_s)
         self.provider = provider
         self.model = model
         self.prices = prices
@@ -70,15 +80,31 @@ class LLMClient:
         self.timeout_s = timeout_s
         self.max_attempts = max_attempts
         self.backoff_s = backoff_s
+        self.budget_s = budget_s
+        self.min_attempt_s = min_attempt_s
+        self.jitter = jitter
         self.sleep = sleep
+        self.clock = clock
 
-    def complete(self, request: LLMRequest) -> LLMResult:
+    @staticmethod
+    def _check_budget(budget_s: float | None, min_attempt_s: float) -> None:
+        if budget_s is not None and budget_s < min_attempt_s:
+            raise ValueError(f"budget_s must be at least {min_attempt_s} seconds")
+
+    def complete(self, request: LLMRequest, *, budget_s: float | None = None) -> LLMResult:
+        budget = budget_s if budget_s is not None else self.budget_s
+        self._check_budget(budget, self.min_attempt_s)
+        deadline = self.clock() + budget if budget is not None else None
+
         for attempt in range(1, self.max_attempts + 1):
+            timeout = self.timeout_s
+            if deadline is not None:
+                remaining = deadline - self.clock()
+                timeout = min(self.timeout_s, max(remaining, self.min_attempt_s))
+
             start = time.perf_counter()
             try:
-                response = self.provider.complete(
-                    request, model=self.model, timeout_s=self.timeout_s
-                )
+                response = self.provider.complete(request, model=self.model, timeout_s=timeout)
             except LLMError as exc:
                 self._record(
                     request,
@@ -92,7 +118,11 @@ class LLMClient:
                 )
                 if not exc.retryable or attempt == self.max_attempts:
                     raise LLMCallFailed(exc.error_type, attempt) from exc
-                self.sleep(self.backoff_s * 2 ** (attempt - 1))
+                delay = self.jitter(self.backoff_s * 2 ** (attempt - 1))
+                # Don't start a retry that can't get a useful amount of time.
+                if deadline is not None and self.clock() + delay + self.min_attempt_s > deadline:
+                    raise LLMCallFailed(exc.error_type, attempt, budget_exhausted=True) from exc
+                self.sleep(delay)
                 continue
 
             latency_ms = _elapsed_ms(start)

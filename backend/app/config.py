@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     llm_provider: Literal["gemini", "ollama"] = "gemini"
     llm_timeout_s: float = Field(default=60.0, ge=10)
     llm_max_attempts: int = 3
+    llm_budget_s: float = Field(default=45.0, ge=10)
 
     gemini_api_key: SecretStr | None = None
     gemini_model: str = "gemini-3.8-flash"
