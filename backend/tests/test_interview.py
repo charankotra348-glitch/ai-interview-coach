@@ -12,6 +12,7 @@ from app.llm.pricing import PriceTable
 from app.llm.structured import StructuredOutputError, complete_json
 from app.llm.types import ProviderResponse
 from app.profiles.schemas import CandidateProfile, JobProfile
+from app.interview.focus import BEHAVIORAL_TOPICS, PROJECT_ANGLES, choose_focus
 
 PRICES = PriceTable(version="t", models={})
 
@@ -99,6 +100,14 @@ def test_score_out_of_range_is_repaired():
     client, _ = client_with(reply(rubric_reply(scores=(6, 3, 3, 3, 3))), reply(rubric_reply()))
     assert evaluate(client).attempts == 2
 
+def test_missing_feedback_is_repaired():
+    no_feedback = rubric_reply()
+    no_feedback["strengths"] = []
+    no_feedback["improvements"] = []
+    client, provider = client_with(reply(no_feedback), reply(rubric_reply()))
+    result = evaluate(client)
+    assert result.attempts == 2
+    assert "improvements" in provider.calls[1]["request"].messages[-1].content
 
 def test_ungrounded_evidence_is_blanked_and_counted():
     evidence = ["I led a team of fifty engineers"] + GOOD_EVIDENCE[1:]
@@ -162,6 +171,22 @@ def test_project_focus_without_projects_has_a_fallback():
     focus = choose_focus("project", CandidateProfile(), None, [])
     assert focus.topic == "the project you are proudest of"
 
+def test_project_focus_comes_with_an_open_ended_angle():
+    first = choose_focus("project", CANDIDATE, None, [])
+    second = choose_focus("project", CANDIDATE, None, ["Stampede Risk Prediction"])
+    assert first.angle == PROJECT_ANGLES[0]
+    assert second.angle == PROJECT_ANGLES[1]   # angle rotates as questions are asked
+
+
+def test_project_question_prompt_includes_the_angle():
+    focus = choose_focus("project", CANDIDATE, None, [])
+    client, provider = client_with(
+        reply({"question": "Walk me through the architecture of Stampede Risk Prediction."})
+    )
+    generate_question(client, mode="project", focus=focus,
+                      target_role="Software Engineering Intern")
+    content = provider.calls[0]["request"].messages[0].content
+    assert focus.angle in content
 
 def test_behavioral_focus_skips_asked_topics_then_cycles():
     assert choose_focus("behavioral", None, None, [BEHAVIORAL_TOPICS[0]]).topic == BEHAVIORAL_TOPICS[1]

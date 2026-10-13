@@ -16,8 +16,9 @@ QUESTION_BUDGET_S = 25
 MODE_GUIDANCE = {
     "behavioral": 'Ask one behavioral question about the focus topic, phrased like a real '
                   'interviewer (for example "Tell me about a time...").',
-    "project": "Ask one probing question about the focus project: a design decision, a hard "
-               "problem, a trade-off, or how its results were measured. Refer to the project by name.",
+            "project": "Ask one open-ended question about the focus project, about exactly the "
+               "focus angle. Refer to the project by name. Do not mention any problem, "
+               "technique, number or result that is not in the focus detail.",
     "system_design": "Ask the candidate to design the focus system, scoped for an internship "
                      "interview, and include one concrete scale number.",
 }
@@ -70,7 +71,8 @@ def generate_question(
     previous = list(previous)[-10:]
     context = {
         "target_role": target_role,
-        "focus": {"kind": focus.kind, "topic": focus.topic, "detail": focus.detail},
+        "focus": {"kind": focus.kind, "topic": focus.topic,
+                  "detail": focus.detail, "angle": focus.angle},
         "job_title": job.title if job else "",
         "job_required_skills": job.required_skills[:10] if job else [],
         "candidate_missing_skills": gap.missing_required[:5] if gap else [],

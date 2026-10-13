@@ -21,6 +21,14 @@ SYSTEM_DESIGN_TOPICS = [
     "a file upload and storage service",
 ]
 
+PROJECT_ANGLES = [
+    "the overall architecture and how its parts fit together",
+    "one important design decision and the alternatives considered",
+    "the hardest problem faced and how it was solved",
+    "how the results were measured or evaluated",
+    "what they would change if they rebuilt it today",
+]
+
 AI_ROLE = re.compile(r"\b(rag|retrieval|vector|llm|embedding)s?\b", re.IGNORECASE)
 
 
@@ -29,6 +37,7 @@ class Focus:
     kind: str
     topic: str
     detail: str = ""
+    angle: str = ""
 
 
 def _next_unasked(pool: list[str], asked: set[str]) -> str:
@@ -43,9 +52,10 @@ def choose_focus(mode: str, candidate: CandidateProfile | None,
     asked = {t.lower() for t in asked_topics}
 
     if mode == "project":
+        angle = PROJECT_ANGLES[len(asked) % len(PROJECT_ANGLES)]
         projects = candidate.projects if candidate else []
         if not projects:
-            return Focus("project", "the project you are proudest of")
+            return Focus("project", "the project you are proudest of", angle=angle)
         for project in projects:
             if project.name.lower() not in asked:
                 break
@@ -54,7 +64,7 @@ def choose_focus(mode: str, candidate: CandidateProfile | None,
         detail = project.summary
         if project.technologies:
             detail += f" Technologies: {', '.join(project.technologies)}."
-        return Focus("project", project.name, detail.strip())
+        return Focus("project", project.name, detail.strip(), angle)
 
     if mode == "system_design":
         pool = list(SYSTEM_DESIGN_TOPICS)

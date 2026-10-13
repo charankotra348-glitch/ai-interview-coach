@@ -59,6 +59,7 @@ def _validator(mode: str, answer: str):
     answer_norm = _norm(answer)
 
     def validate(data: dict) -> Evaluation:
+        # 1. Every criterion must be present, with a score from 1 to 5.
         raw = data.get("rubric")
         if not isinstance(raw, list):
             raise ValueError("rubric must be a list")
@@ -68,6 +69,7 @@ def _validator(mode: str, answer: str):
         if missing:
             raise ValueError(f"missing rubric items: {missing}")
 
+        # 2. Evidence must be a real quote from the answer; blank and count it otherwise.
         rubric, ungrounded = [], 0
         for name in names:
             item = by_name[name.lower()].model_copy(update={"name": name})
@@ -76,12 +78,21 @@ def _validator(mode: str, answer: str):
                 item = item.model_copy(update={"evidence": ""})
             rubric.append(item)
 
+        # 3. Feedback must be useful: improvements unless perfect, strengths unless a total miss.
+        strengths = clip_list(data.get("strengths"), 3, 200)
+        improvements = clip_list(data.get("improvements"), 3, 200)
+        scores = [item.score for item in rubric]
+        if not improvements and min(scores) < 5:
+            raise ValueError("improvements must name at least one concrete improvement")
+        if not strengths and max(scores) > 1:
+            raise ValueError("strengths must name at least one thing the answer did well")
+
         return Evaluation(
             mode=mode,
             rubric=rubric,
-            overall=overall_score([item.score for item in rubric]),  # computed, never trusted
-            strengths=clip_list(data.get("strengths"), 3, 200),
-            improvements=clip_list(data.get("improvements"), 3, 200),
+            overall=overall_score(scores),  # computed, never trusted
+            strengths=strengths,
+            improvements=improvements,
             follow_up_question=clip(data.get("follow_up_question"), 300),
             ungrounded_evidence=ungrounded,
         )

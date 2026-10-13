@@ -11,8 +11,8 @@ from app.profiles.extractor import extract_candidate_profile, extract_job_profil
 from app.profiles.skills import compute_gap
 
 MODES = ("behavioral", "project", "system_design")
-if len(sys.argv) != 4 or sys.argv[3] not in MODES:
-    sys.exit("usage: python -m scripts.interview_smoke RESUME JOB MODE "
+if len(sys.argv) not in (4, 5) or sys.argv[3] not in MODES:
+    sys.exit("usage: python -m scripts.interview_smoke RESUME JOB MODE [ANSWER_FILE] "
              "(MODE: behavioral | project | system_design)")
 
 resume_path, job_path = (Path(p).expanduser() for p in sys.argv[1:3])
@@ -32,16 +32,22 @@ question = generate_question(client, mode=mode, focus=focus,
                              job=job, gap=gap)
 print(f"\nFocus: {focus.topic}\n\nQ: {question.value.question}\n")
 
-print("Type your answer. Press Enter on an empty line to finish:")
-lines = []
-while True:
-    line = input()
-    if not line.strip():
-        break
-    lines.append(line)
+if len(sys.argv) == 5:
+    answer = Path(sys.argv[4]).expanduser().read_text()
+    print(f"(answer read from {sys.argv[4]})")
+else:
+    print("Type your answer. Press Enter on an empty line to finish:")
+    lines = []
+    while True:
+        line = input()
+        if not line.strip():
+            break
+        lines.append(line)
+    answer = "\n".join(lines)
 
+print("\nGrading your answer...")
 evaluation = evaluate_answer(client, mode=mode, question=question.value.question,
-                             answer="\n".join(lines))
+                             answer=answer)
 ev = evaluation.value
 
 print(f"\nOverall: {ev.overall}/10")
