@@ -35,10 +35,17 @@ evaluations, difficulty, and why each question was asked.
 
 ## Measured costs
 
+Measured on a MacBook Air, warm (after the first run):
+
 - Graph and policy overhead per turn, with model calls excluded: about 1 ms p50.
-- Importing LangGraph adds about 0.5 s to server startup (app import went from about
-  0.65 s to about 1.15 s). That is acceptable for a long-running server, though it
-  would matter more for a per-request runtime such as Lambda.
+- App import (server startup): about 0.59 s, of which LangGraph is about 0.37 s.
+- The first import after installing packages takes about 1.5 s, because Python compiles
+  bytecode for the new packages. This happens once per install, or once per new container
+  image if the bytecode isn't compiled at build time.
+
+This is paid once when the server starts, never per request. It would matter for a runtime
+that starts a fresh process per request (for example Lambda), not for a long-running
+server on ECS.
 
 ## Consequences and limits
 
