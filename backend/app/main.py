@@ -10,7 +10,7 @@ from app.api import health, profiles
 from app.config import settings
 from app.ingest.extract import DocumentError
 from app.llm.errors import LLMCallFailed
-from app.profiles.extractor import ProfileExtractionError
+from app.llm.structured import StructuredOutputError
 
 logging.basicConfig(level=settings.log_level, format="%(message)s")
 logger = logging.getLogger("app")
@@ -59,8 +59,8 @@ def create_app() -> FastAPI:
     async def document_error(request: Request, exc: DocumentError):
         return _error(422, exc.code, exc.message)
 
-    @app.exception_handler(ProfileExtractionError)
-    async def extraction_error(request: Request, exc: ProfileExtractionError):
+    @app.exception_handler(StructuredOutputError)
+    async def structured_output_error(request: Request, exc: StructuredOutputError):
         return _error(502, "extraction_failed",
                       "The AI returned an unusable result. Please try again.")
 
