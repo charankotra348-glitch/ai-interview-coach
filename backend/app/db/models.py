@@ -192,3 +192,40 @@ class LLMCall(TimestampMixin, Base):
     cost_usd: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 6))
     cost_basis: Mapped[str] = mapped_column(String(30))
     price_table_version: Mapped[Optional[str]] = mapped_column(String(20))
+
+class CandidateProfileRecord(TimestampMixin, Base):
+    """A bounded profile extracted from a resume. The resume itself is never stored."""
+
+    __tablename__ = "candidate_profiles"
+    __table_args__ = (
+        CheckConstraint("source_format IN ('pdf', 'docx', 'text')", name="source_format_valid"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    data: Mapped[dict] = mapped_column(JSONB)
+    source_format: Mapped[str] = mapped_column(String(10))
+    source_chars: Mapped[int] = mapped_column(Integer)
+    truncated: Mapped[bool] = mapped_column(Boolean)
+    parse_attempts: Mapped[int] = mapped_column(Integer)
+    dropped_count: Mapped[int] = mapped_column(Integer)
+
+
+class JobProfileRecord(TimestampMixin, Base):
+    __tablename__ = "job_profiles"
+    __table_args__ = (
+        CheckConstraint("source_format IN ('pdf', 'docx', 'text')", name="source_format_valid"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    data: Mapped[dict] = mapped_column(JSONB)
+    source_format: Mapped[str] = mapped_column(String(10))
+    source_chars: Mapped[int] = mapped_column(Integer)
+    truncated: Mapped[bool] = mapped_column(Boolean)
+    parse_attempts: Mapped[int] = mapped_column(Integer)
+    dropped_count: Mapped[int] = mapped_column(Integer)

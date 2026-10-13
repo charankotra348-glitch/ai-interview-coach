@@ -4,12 +4,22 @@ import time
 import uuid
 
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
-from app.api import health
+from app.api import health, profiles
 from app.config import settings
+from app.ingest.extract import DocumentError
+from app.llm.errors import LLMCallFailed
+from app.profiles.extractor import ProfileExtractionError
 
 logging.basicConfig(level=settings.log_level, format="%(message)s")
 logger = logging.getLogger("app")
+
+
+def _error(status: int, code: str, message: str, **extra) -> JSONResponse:
+    return JSONResponse(status_code=status, content={
+        "detail": {"code": code, "message": message, **extra},
+    })
 
 
 def create_app() -> FastAPI:
@@ -45,7 +55,26 @@ def create_app() -> FastAPI:
                 "duration_ms": round(duration_ms, 2),
             }))
 
+    @app.exception_handler(DocumentError)
+    async def document_error(request: Request, exc: DocumentError):
+        return _error(422, exc.code, exc.message)
+
+    @app.exception_handler(ProfileExtractionError)
+    async def extraction_error(request: Request, exc: ProfileExtractionError):
+        return _error(502, "extraction_failed",
+                      "The AI returned an unusable result. Please try again.")
+
+    @app.exception_handler(LLMCallFailed)
+    async def llm_unavailable(request: Request, exc: LLMCallFailed):
+        logger.warning(json.dumps({
+            "event": "llm_call_failed", "error_type": exc.error_type, "attempts": exc.attempts,
+        }))
+        return _error(503, "ai_unavailable",
+                      "The AI service is busy. Please try again in a few minutes.",
+                      retryable=True)
+
     app.include_router(health.router)
+    app.include_router(profiles.router)
     return app
 
 

@@ -1,10 +1,13 @@
 import os
+from pathlib import Path
 
 import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
+
+BACKEND_DIR = Path(__file__).resolve().parents[1]
 
 TEST_DATABASE_URL = os.getenv(
     "TEST_DATABASE_URL",
@@ -13,7 +16,8 @@ TEST_DATABASE_URL = os.getenv(
 
 
 def alembic_config() -> Config:
-    cfg = Config("alembic.ini")
+    cfg = Config(str(BACKEND_DIR / "alembic.ini"))
+    cfg.set_main_option("script_location", str(BACKEND_DIR / "migrations"))
     cfg.set_main_option("sqlalchemy.url", TEST_DATABASE_URL)
     return cfg
 
