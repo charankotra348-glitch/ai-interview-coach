@@ -16,17 +16,25 @@ QUESTION_BUDGET_S = 25
 MODE_GUIDANCE = {
     "behavioral": 'Ask one behavioral question about the focus topic, phrased like a real '
                   'interviewer (for example "Tell me about a time...").',
-            "project": "Ask one open-ended question about the focus project, about exactly the "
+    "project": "Ask one open-ended question about the focus project, about exactly the "
                "focus angle. Refer to the project by name. Do not mention any problem, "
                "technique, number or result that is not in the focus detail.",
     "system_design": "Ask the candidate to design the focus system, scoped for an internship "
                      "interview, and include one concrete scale number.",
 }
 
+DIFFICULTY_GUIDANCE = {
+    1: "Difficulty: warm-up. Keep it simple and concrete, about one idea.",
+    2: "Difficulty: standard internship interview level.",
+    3: "Difficulty: stretch. Ask for deeper reasoning than a standard question: why a "
+       "choice was made, what would break first, or how they would know it works.",
+}
 
-def build_question_system(mode: str) -> str:
+
+def build_question_system(mode: str, difficulty: int = 2) -> str:
     return f"""You are a technical interviewer for internship candidates.
 {MODE_GUIDANCE[mode]}
+{DIFFICULTY_GUIDANCE[difficulty]}
 Rules:
 - One question only, under 60 words, with no preamble or explanation.
 - Do not repeat or closely paraphrase any of previous_questions.
@@ -66,8 +74,11 @@ def generate_question(
     job: JobProfile | None = None,
     gap: SkillGap | None = None,
     previous: Sequence[str] = (),
+    difficulty: int = 2,
     session_id: UUID | None = None,
 ) -> StructuredResult[GeneratedQuestion]:
+    if difficulty not in DIFFICULTY_GUIDANCE:
+        raise ValueError(f"difficulty must be 1, 2 or 3, not {difficulty}")
     previous = list(previous)[-10:]
     context = {
         "target_role": target_role,
@@ -89,7 +100,7 @@ def generate_question(
     return complete_json(
         client,
         purpose="question",
-        system=build_question_system(mode),
+        system=build_question_system(mode, difficulty),
         content=wrap_document("context", json.dumps(context, indent=2)),
         validate=validate,
         max_tokens=2048,

@@ -47,7 +47,8 @@ Rules:
 - "evidence" must be a short exact quote copied from the answer that supports the score,
   or "" if nothing in the answer supports it.
 - strengths and improvements: one to three short, specific items each.
-- follow_up_question: the single most useful follow-up a real interviewer would ask next.
+- follow_up_question: one short follow-up a real interviewer would ask next, aimed at the
+  lowest-scoring criterion. Build it only on what the answer actually says.
 - Reply with a single JSON object only.
 Criteria:
 {criteria}
