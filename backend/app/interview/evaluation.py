@@ -30,6 +30,7 @@ class Evaluation(BaseModel):
     overall: int
     strengths: list[str]
     improvements: list[str]
+    feedback_source: str  # "model" if the model wrote it, "derived" if built from the rubric
     follow_up_question: str
     ungrounded_evidence: int
 
@@ -45,6 +46,7 @@ Rules:
 - A typical, decent intern answer scores about 3. Reserve 5 for genuinely exceptional answers.
 - "evidence" must be a short exact quote copied from the answer that supports the score,
   or "" if nothing in the answer supports it.
+- strengths and improvements: one to three short, specific items each.
 - follow_up_question: the single most useful follow-up a real interviewer would ask next.
 - Reply with a single JSON object only.
 Criteria:
@@ -54,12 +56,28 @@ Shape:
  "strengths": [str], "improvements": [str], "follow_up_question": str}}"""
 
 
+def derive_feedback(mode: str, rubric: list[RubricScore]) -> tuple[list[str], list[str]]:
+    """Build strengths and improvements from the scores themselves, so they always agree."""
+    descriptions = {c.name: c.description for c in RUBRICS[mode]}
+    by_score = sorted(rubric, key=lambda item: item.score)
+
+    improvements = [
+        f"{item.name} ({item.score}/5): {item.note or 'aim for: ' + descriptions[item.name]}"
+        for item in by_score if item.score < 5
+    ][:2]
+    strengths = [
+        f"{item.name} ({item.score}/5)" + (f": {item.note}" if item.note else "")
+        for item in reversed(by_score) if item.score > 1
+    ][:2]
+    return strengths, improvements
+
+
 def _validator(mode: str, answer: str):
     names = [c.name for c in RUBRICS[mode]]
     answer_norm = _norm(answer)
 
     def validate(data: dict) -> Evaluation:
-        # 1. Every criterion must be present, with a score from 1 to 5.
+        # 1. Essential: every criterion present, scored 1 to 5. Missing -> repair or fail.
         raw = data.get("rubric")
         if not isinstance(raw, list):
             raise ValueError("rubric must be a list")
@@ -78,14 +96,18 @@ def _validator(mode: str, answer: str):
                 item = item.model_copy(update={"evidence": ""})
             rubric.append(item)
 
-        # 3. Feedback must be useful: improvements unless perfect, strengths unless a total miss.
+        # 3. Reconstructable: feedback. Use the model's if complete, otherwise derive it.
+        scores = [item.score for item in rubric]
         strengths = clip_list(data.get("strengths"), 3, 200)
         improvements = clip_list(data.get("improvements"), 3, 200)
-        scores = [item.score for item in rubric]
-        if not improvements and min(scores) < 5:
-            raise ValueError("improvements must name at least one concrete improvement")
-        if not strengths and max(scores) > 1:
-            raise ValueError("strengths must name at least one thing the answer did well")
+        source = "model"
+        needs_improvements = min(scores) < 5
+        needs_strengths = max(scores) > 1
+        if (needs_improvements and not improvements) or (needs_strengths and not strengths):
+            derived_strengths, derived_improvements = derive_feedback(mode, rubric)
+            strengths = strengths or derived_strengths
+            improvements = improvements or derived_improvements
+            source = "derived"
 
         return Evaluation(
             mode=mode,
@@ -93,6 +115,7 @@ def _validator(mode: str, answer: str):
             overall=overall_score(scores),  # computed, never trusted
             strengths=strengths,
             improvements=improvements,
+            feedback_source=source,
             follow_up_question=clip(data.get("follow_up_question"), 300),
             ungrounded_evidence=ungrounded,
         )

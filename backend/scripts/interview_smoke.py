@@ -58,7 +58,7 @@ for item in ev.rubric:
 print("\nStrengths:", *[f"\n  - {s}" for s in ev.strengths])
 print("Improve:", *[f"\n  - {s}" for s in ev.improvements])
 print(f"\nLikely follow-up: {ev.follow_up_question}")
-print(f"Ungrounded evidence quotes: {ev.ungrounded_evidence}")
+print(f"Ungrounded evidence quotes: {ev.ungrounded_evidence}   feedback: {ev.feedback_source}")
 
 for label, result in (("question", question), ("evaluation", evaluation)):
     cost = sum((c.cost.usd or Decimal(0)) for c in result.calls)

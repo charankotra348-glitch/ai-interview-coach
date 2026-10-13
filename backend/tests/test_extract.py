@@ -7,6 +7,7 @@ from docx import Document
 
 from app.ingest import extract
 from app.ingest.extract import MAX_CHARS, DocumentError, extract_text
+from tests.timing import measure_ms, percentile
 
 RESUME_LINES = [
     "Jordan Example - Software Engineering Intern",
@@ -162,11 +163,7 @@ def test_zip_bomb_is_rejected_before_parsing(monkeypatch):
 @pytest.mark.parametrize("fmt", ["pdf", "docx"])
 def test_extraction_p95_under_50ms(fmt):
     data = make_pdf(RESUME_LINES) if fmt == "pdf" else make_docx(RESUME_LINES * 20)
-    times = []
-    for _ in range(30):
-        start = time.perf_counter()
-        extract_text(data, filename=f"r.{fmt}")
-        times.append((time.perf_counter() - start) * 1000)
-    times.sort()
-    print(f"\n{fmt} extraction p50={times[14]:.2f}ms p95={times[28]:.2f}ms")
-    assert times[28] < 50
+    times = measure_ms(lambda: extract_text(data, filename=f"r.{fmt}"))
+    p50, p95 = percentile(times, 0.50), percentile(times, 0.95)
+    print(f"\n{fmt} extraction p50={p50:.2f}ms p95={p95:.2f}ms (n={len(times)})")
+    assert p95 < 50

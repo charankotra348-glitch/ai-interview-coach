@@ -100,15 +100,34 @@ def test_score_out_of_range_is_repaired():
     client, _ = client_with(reply(rubric_reply(scores=(6, 3, 3, 3, 3))), reply(rubric_reply()))
     assert evaluate(client).attempts == 2
 
-def test_missing_feedback_is_repaired():
-    no_feedback = rubric_reply()
+def test_missing_feedback_is_derived_from_the_rubric():
+    no_feedback = rubric_reply(scores=(2, 4, 5, 3, 4))
     no_feedback["strengths"] = []
     no_feedback["improvements"] = []
-    client, provider = client_with(reply(no_feedback), reply(rubric_reply()))
+    client, _ = client_with(reply(no_feedback))
     result = evaluate(client)
-    assert result.attempts == 2
-    assert "improvements" in provider.calls[1]["request"].messages[-1].content
+    assert result.attempts == 1                       # no repair needed
+    assert result.value.feedback_source == "derived"
+    assert result.value.improvements[0].startswith("Structure (2/5)")   # weakest first
+    assert result.value.strengths[0].startswith("Ownership (5/5)")      # strongest first
 
+
+def test_model_feedback_is_kept_when_present():
+    client, _ = client_with(reply(rubric_reply()))
+    result = evaluate(client)
+    assert result.value.feedback_source == "model"
+    assert result.value.strengths == ["Quantified impact"]
+
+
+def test_a_perfect_answer_needs_no_improvements():
+    perfect = rubric_reply(scores=(5, 5, 5, 5, 5))
+    perfect["improvements"] = []
+    client, _ = client_with(reply(perfect))
+    result = evaluate(client)
+    assert result.value.improvements == []
+    assert result.value.feedback_source == "model"
+
+    
 def test_ungrounded_evidence_is_blanked_and_counted():
     evidence = ["I led a team of fifty engineers"] + GOOD_EVIDENCE[1:]
     client, _ = client_with(reply(rubric_reply(evidence=evidence)))

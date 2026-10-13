@@ -21,7 +21,9 @@ RUBRICS: dict[str, tuple[Criterion, ...]] = {
         Criterion("Reflection", "What they learned or would do differently."),
     ),
     "project": (
-        Criterion("Problem framing", "Explains the problem, who it was for and why it mattered."),
+        Criterion("Problem framing", "States the real-world problem before the solution: "
+                  "why it matters and who it is for. Describing system components is not "
+                  "problem framing."),
         Criterion("Technical depth", "Accurate explanation of how the system works."),
         Criterion("Trade-offs", "Names alternatives considered and why one was chosen."),
         Criterion("Ownership", "Clear about which parts the candidate built."),
