@@ -91,11 +91,13 @@ def test_shipped_price_table_loads():
     table = load_price_table()
     assert table.version
 
+
 def test_purpose_longer_than_column_is_rejected():
     from pydantic import ValidationError
 
     with pytest.raises(ValidationError):
         request(purpose="x" * 41)
+
 
 # --- retries and failures ----------------------------------------------------
 
@@ -164,7 +166,7 @@ def test_invalid_max_attempts_rejected():
 # --- architecture rule (decision 002) ----------------------------------------
 
 def test_only_llm_package_imports_provider_sdks():
-    sdk_modules = {"anthropic", "openai"}
+    sdk_modules = {"anthropic", "openai", "google"}
     app_dir = Path(__file__).resolve().parents[1] / "app"
     offenders = []
     for path in app_dir.rglob("*.py"):

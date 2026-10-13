@@ -23,6 +23,11 @@ class ProviderRequestError(LLMError):
     error_type = "bad_request"
 
 
+class ProviderAuthError(LLMError):
+    retryable = False
+    error_type = "auth"
+
+
 class LLMCallFailed(Exception):
     def __init__(self, error_type: str, attempts: int):
         super().__init__(f"LLM call failed after {attempts} attempt(s): {error_type}")

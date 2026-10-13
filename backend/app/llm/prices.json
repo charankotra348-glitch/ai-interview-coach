@@ -1,4 +1,11 @@
 {
-  "version": "unpriced",
-  "models": {}
+  "version": "2026-10-12",
+  "source": "https://ai.google.dev/gemini-api/docs/pricing",
+  "note": "Paid-tier list prices. gemini-3.8-flash rises to 1.50/7.50 on 2027-01-01.",
+  "models": {
+    "gemini-3.8-flash": {
+      "input_per_million": "0.75",
+      "output_per_million": "3.75"
+    }
+  }
 }
