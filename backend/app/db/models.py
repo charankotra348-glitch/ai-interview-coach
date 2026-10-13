@@ -75,6 +75,16 @@ class InterviewSession(TimestampMixin, Base):
     )
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
+
+
+    candidate_profile_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("candidate_profiles.id", ondelete="SET NULL")
+    )
+    job_profile_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("job_profiles.id", ondelete="SET NULL")
+    )
+    max_questions: Mapped[int] = mapped_column(Integer, default=5, server_default="5")
+
     user: Mapped[User] = relationship(back_populates="sessions")
     questions: Mapped[list["Question"]] = relationship(
         back_populates="session",
@@ -96,6 +106,8 @@ class Question(TimestampMixin, Base):
     )
     position: Mapped[int] = mapped_column(Integer)
     text: Mapped[str] = mapped_column(Text)
+
+    focus_topic: Mapped[Optional[str]] = mapped_column(String(200))
 
     session: Mapped[InterviewSession] = relationship(back_populates="questions")
     answer: Mapped[Optional["Answer"]] = relationship(
