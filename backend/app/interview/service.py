@@ -52,18 +52,20 @@ def _turn(q: Question) -> Turn:
         difficulty=q.difficulty,
         overall=ev.overall_score if ev else None,
         weakest=weakest_criterion(ev.rubric) if ev else None,
-        follow_up_question=ev.feedback.get("follow_up_question", "") if ev else "",
     )
 
 
 def _turn_state(db: Session, s: InterviewSession) -> TurnState:
     candidate, job = load_profiles(db, s)
+    last = s.questions[-1] if s.questions else None
     return {
         "mode": s.mode,
         "target_role": s.target_role,
         "max_questions": s.max_questions,
         "turns": [_turn(q) for q in s.questions],
         "previous": [q.text for q in s.questions],
+        "last_question": last.text if last else "",
+        "last_answer": last.answer.text if last and last.answer else "",
         "asked_topics": [q.focus_topic for q in s.questions if q.focus_topic],
         "candidate": candidate,
         "job": job,

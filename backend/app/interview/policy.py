@@ -2,8 +2,6 @@
 from dataclasses import dataclass
 from typing import Literal
 
-from app.interview.questions import too_similar
-
 START_DIFFICULTY = 2
 MIN_DIFFICULTY, MAX_DIFFICULTY = 1, 3
 PROBE_AT_OR_BELOW = 2   # a criterion scored this low earns one follow-up
@@ -20,7 +18,6 @@ class Turn:
     difficulty: int
     overall: int | None = None              # None until the answer is graded
     weakest: tuple[str, int] | None = None  # the lowest-scoring criterion and its score
-    follow_up_question: str = ""            # the grader's suggested follow-up
 
 
 @dataclass(frozen=True)
@@ -28,7 +25,6 @@ class Decision:
     action: Literal["new_topic", "follow_up", "finish"]
     difficulty: int
     rationale: str
-    follow_up: str = ""
     target: str = ""                        # the criterion a follow-up is aimed at
 
 
@@ -47,17 +43,7 @@ def next_difficulty(current: int, overall: int) -> int:
     return max(MIN_DIFFICULTY, min(MAX_DIFFICULTY, current))
 
 
-def usable_follow_up(text: str, previous: list[str]) -> str:
-    """The grader's follow-up, or "" if it is missing, malformed or a repeat."""
-    text = (text or "").strip()
-    if not 15 <= len(text) <= 400:
-        return ""
-    if any(too_similar(text, earlier) for earlier in previous):
-        return ""
-    return text
-
-
-def decide(turns: list[Turn], max_questions: int, previous: list[str]) -> Decision:
+def decide(turns: list[Turn], max_questions: int) -> Decision:
     if not turns:
         return Decision("new_topic", START_DIFFICULTY, "opening question")
 
@@ -68,12 +54,11 @@ def decide(turns: list[Turn], max_questions: int, previous: list[str]) -> Decisi
         raise ValueError("the last question has not been graded yet")
 
     # 1. Probe: one follow-up on a main question with a clearly weak criterion.
+    #    Code picks the criterion; the model only words the question.
     if not last.is_follow_up and last.weakest and last.weakest[1] <= PROBE_AT_OR_BELOW:
-        follow_up = usable_follow_up(last.follow_up_question, previous)
-        if follow_up:
-            name, score = last.weakest
-            return Decision("follow_up", last.difficulty,
-                            f"follow-up: {name} scored {score}/5", follow_up, target=name)
+        name, score = last.weakest
+        return Decision("follow_up", last.difficulty,
+                        f"follow-up: {name} scored {score}/5", target=name)
 
     # 2. Move on. Difficulty follows the main answer, never the follow-up: follow-ups are
     #    short by design and would score low on criteria they were never meant to cover.

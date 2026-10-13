@@ -13,7 +13,7 @@ from langgraph.runtime import Runtime
 
 from app.interview.focus import choose_focus
 from app.interview.policy import Decision, Turn, decide
-from app.interview.questions import generate_question
+from app.interview.questions import generate_follow_up, generate_question
 from app.llm.client import LLMClient
 from app.profiles.schemas import CandidateProfile, JobProfile
 from app.profiles.skills import compute_gap
@@ -26,6 +26,8 @@ class TurnState(TypedDict, total=False):
     max_questions: int
     turns: list[Turn]
     previous: list[str]             # earlier question texts, oldest first
+    last_question: str              # the most recent question and its answer,
+    last_answer: str                # which a follow-up builds on
     asked_topics: list[str]         # focus topics already used
     candidate: CandidateProfile | None
     job: JobProfile | None
@@ -43,16 +45,25 @@ class TurnContext:
 
 
 def decide_node(state: TurnState) -> dict:
-    return {"decision": decide(state["turns"], state["max_questions"], state["previous"])}
+    return {"decision": decide(state["turns"], state["max_questions"])}
 
 
-def follow_up_node(state: TurnState) -> dict:
-    # The grader already wrote this question while grading: no extra model call.
+def follow_up_node(state: TurnState, runtime: Runtime[TurnContext]) -> dict:
+    # The policy chose the criterion; the model only words a question about it.
+    result = generate_follow_up(
+        runtime.context.llm,
+        mode=state["mode"],
+        criterion=state["decision"].target,
+        question=state["last_question"],
+        answer=state["last_answer"],
+        previous=state["previous"],
+        session_id=state.get("session_id"),
+    )
     topics = state["asked_topics"]
     return {
-        "question": state["decision"].follow_up,
+        "question": result.value.question,
         "focus_topic": topics[-1] if topics else "",
-        "llm_calls": 0,
+        "llm_calls": len(result.calls),
     }
 
 

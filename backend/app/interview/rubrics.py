@@ -17,7 +17,8 @@ RUBRICS: dict[str, tuple[Criterion, ...]] = {
         Criterion("Structure", "Clear situation, task, action and result; easy to follow."),
         Criterion("Specificity", "Concrete details such as systems, numbers and timelines, not generalities."),
         Criterion("Ownership", "Clear about what the candidate personally did."),
-        Criterion("Impact", "A real, preferably measurable outcome."),
+        Criterion("Impact", "A real, preferably measurable outcome. A vague outcome with no "
+                  "measure or evidence, such as 'it worked better', scores at most 2."),
         Criterion("Reflection", "What they learned or would do differently."),
     ),
     "project": (
@@ -27,7 +28,8 @@ RUBRICS: dict[str, tuple[Criterion, ...]] = {
         Criterion("Technical depth", "Accurate explanation of how the system works."),
         Criterion("Trade-offs", "Names alternatives considered and why one was chosen."),
         Criterion("Ownership", "Clear about which parts the candidate built."),
-        Criterion("Results", "How success was measured, with real outcomes."),
+        Criterion("Results", "How success was measured, with real outcomes. A claim of "
+                  "success with no measure or evidence scores at most 2."),
     ),
     "system_design": (
         Criterion("Requirements", "Clarifies functional needs and scale before designing."),

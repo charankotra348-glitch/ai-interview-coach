@@ -1,6 +1,6 @@
 # 004: LangGraph runs one turn at a time; Postgres is the only source of truth
 
-Status: Accepted (2026-10-13)
+Status: Accepted (2026-10-13). Revised the same day: point 4, after the first real interview.
 
 ## Context
 
@@ -22,8 +22,19 @@ evaluations, difficulty, and why each question was asked.
    the time between two HTTP requests.
 3. **Decisions are deterministic code** (`app/interview/policy.py`). The graph routes on
    them; the model only writes question text.
-4. **A follow-up costs no extra model call.** It reuses the follow-up the grader already wrote.
-   If that text is missing, too short, or repeats an earlier question, the interview moves on.
+4. **Code picks what a follow-up asks about; the model only words it.** The policy chooses the
+   weakest criterion, and a dedicated model call writes one question about exactly that
+   criterion, built on the candidate's last question and answer. This costs one extra model
+   call per follow-up.
+
+### Revision: why follow-ups are no longer free
+
+The first version reused the follow-up the grader writes while grading, which cost no extra
+call. In the first real interview, the policy correctly chose Reflection (2/5), but the
+grader's follow-up asked about DeepSORT settings, which is a Specificity question. The prompt
+told the grader to aim at the weakest criterion, and it did not. That let the model decide
+what to ask, against this project's rule, and it would have made `follow_up_target_delta`
+measure a criterion the question never asked about. Correct targeting is worth one call.
 
 ## Why
 
@@ -54,8 +65,12 @@ server on ECS.
   on the criterion they targeted (`follow_up_target_delta`).
 - The thresholds (probe at 2/5 or below, harder at 8/10 or above, easier at 4/10 or below)
   are hypotheses. They are validated with the evaluation harness, per decision 003.
-- The grader's follow-up is not checked for invented premises. Its prompt says to build only
-  on what the answer says, which is weaker than a check in code.
+- Follow-ups are not checked in code for invented premises, or for whether they really ask
+  about the target criterion. The prompt names only that criterion and says to build only on
+  what the answer says. Checking this is a job for the evaluation harness (decision 003).
+- The same first interview showed the grader scoring "the tracking worked a lot better" 4/5 on
+  Impact. The outcome criteria (Impact, Results) now say that a vague outcome with no measure
+  scores at most 2. Whether this anchor helps is measured in Step 10.
 
 ## Revisit when
 
