@@ -15,11 +15,10 @@ from app.db.models import (
     Question,
 )
 from app.interview.evaluation import evaluate_answer
-from app.interview.focus import choose_focus
-from app.interview.questions import generate_question
+from app.interview.graph import TurnState, run_turn
+from app.interview.policy import Turn, weakest_criterion
 from app.llm.client import LLMClient
 from app.profiles.schemas import CandidateProfile, JobProfile
-from app.profiles.skills import compute_gap
 
 
 class SessionComplete(Exception):
@@ -46,34 +45,54 @@ def current_question(s: InterviewSession) -> Question | None:
     return None
 
 
+def _turn(q: Question) -> Turn:
+    ev = q.answer.evaluation if q.answer else None
+    return Turn(
+        is_follow_up=q.parent_question_id is not None,
+        difficulty=q.difficulty,
+        overall=ev.overall_score if ev else None,
+        weakest=weakest_criterion(ev.rubric) if ev else None,
+        follow_up_question=ev.feedback.get("follow_up_question", "") if ev else "",
+    )
+
+
+def _turn_state(db: Session, s: InterviewSession) -> TurnState:
+    candidate, job = load_profiles(db, s)
+    return {
+        "mode": s.mode,
+        "target_role": s.target_role,
+        "max_questions": s.max_questions,
+        "turns": [_turn(q) for q in s.questions],
+        "previous": [q.text for q in s.questions],
+        "asked_topics": [q.focus_topic for q in s.questions if q.focus_topic],
+        "candidate": candidate,
+        "job": job,
+        "session_id": s.id,
+    }
+
+
 def next_question(db: Session, s: InterviewSession, llm: LLMClient) -> Question:
     pending = current_question(s)
     if pending is not None:
         return pending  # idempotent: never generate a second unanswered question
-
-    if s.status != "active" or len(s.questions) >= s.max_questions:
+    if s.status != "active":
         raise SessionComplete()
 
-    candidate, job = load_profiles(db, s)
-    gap = compute_gap(candidate, job) if candidate and job else None
-    asked = [q.focus_topic for q in s.questions if q.focus_topic]
-    focus = choose_focus(s.mode, candidate, job, asked)
+    result = run_turn(_turn_state(db, s), llm)
+    decision = result["decision"]
+    if decision.action == "finish":
+        raise SessionComplete()
 
-    result = generate_question(
-        llm,
-        mode=s.mode,
-        focus=focus,
-        target_role=s.target_role,
-        job=job,
-        gap=gap,
-        previous=[q.text for q in s.questions],
-        session_id=s.id,
-    )
+    follow_up = decision.action == "follow_up"
     question = Question(
         session=s,
+        parent_question_id=s.questions[-1].id if follow_up else None,
         position=len(s.questions) + 1,
-        text=result.value.question,
-        focus_topic=focus.topic[:200],
+        text=result["question"],
+        focus_topic=result["focus_topic"] or None,
+        difficulty=decision.difficulty,
+        rationale=decision.rationale[:200],
+        target_criterion=decision.target if follow_up else None,
     )
     # SQLAlchemy 2.0: linking to the parent does not add the object; add it explicitly.
     db.add(question)
@@ -123,24 +142,47 @@ def submit_answer(db: Session, s: InterviewSession, q: Question, text: str,
     return record
 
 
-def summarize(db: Session, s: InterviewSession) -> dict:
-    evaluations = [q.answer.evaluation for q in s.questions if q.answer and q.answer.evaluation]
-    overall = [e.overall_score for e in evaluations]
+def _score(evaluation: EvaluationRecord, criterion: str) -> int | None:
+    for item in evaluation.rubric:
+        if item["name"] == criterion:
+            return item["score"]
+    return None
 
+
+def summarize(db: Session, s: InterviewSession) -> dict:
+    graded = [q for q in s.questions if q.answer and q.answer.evaluation]
+    main = [q for q in graded if q.parent_question_id is None]
+    follow_ups = [q for q in graded if q.parent_question_id is not None]
+
+    # Scores come from main answers only. Follow-ups are short by design, so they are
+    # measured only on the criterion they targeted: did probing help the candidate recover?
+    overall = [q.answer.evaluation.overall_score for q in main]
     per_criterion: dict[str, list[int]] = {}
-    for e in evaluations:
-        for item in e.rubric:
+    for q in main:
+        for item in q.answer.evaluation.rubric:
             per_criterion.setdefault(item["name"], []).append(item["score"])
+
+    by_id = {q.id: q for q in graded}
+    deltas = []
+    for f in follow_ups:
+        parent = by_id.get(f.parent_question_id)
+        before = _score(parent.answer.evaluation, f.target_criterion) if parent else None
+        after = _score(f.answer.evaluation, f.target_criterion)
+        if before is not None and after is not None:
+            deltas.append(after - before)
 
     calls = db.scalars(select(LLMCall).where(LLMCall.session_id == s.id)).all()
     priced = [c.cost_usd for c in calls if c.cost_usd is not None]
 
     return {
-        "answered": len(evaluations),
+        "answered": len(graded),
         "average_overall": round(sum(overall) / len(overall), 1) if overall else None,
         "criteria_averages": {
             name: round(sum(scores) / len(scores), 2) for name, scores in per_criterion.items()
         },
+        "follow_ups": len(follow_ups),
+        "follow_up_target_delta": round(sum(deltas) / len(deltas), 2) if deltas else None,
+        "difficulty_path": [q.difficulty for q in s.questions if q.parent_question_id is None],
         "llm_calls": len(calls),
         "failed_llm_calls": sum(1 for c in calls if not c.success),
         "estimated_cost_usd": str(sum(priced, Decimal(0))),

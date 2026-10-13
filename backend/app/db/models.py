@@ -95,7 +95,15 @@ class InterviewSession(TimestampMixin, Base):
 
 class Question(TimestampMixin, Base):
     __tablename__ = "questions"
-    __table_args__ = (UniqueConstraint("session_id", "position"),)
+    __table_args__ = (
+        UniqueConstraint("session_id", "position"),
+        CheckConstraint("difficulty BETWEEN 1 AND 3", name="difficulty_range"),
+        # A follow-up always names the criterion it targets; a main question never does.
+        CheckConstraint(
+            "(parent_question_id IS NULL) = (target_criterion IS NULL)",
+            name="follow_up_has_target",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     session_id: Mapped[uuid.UUID] = mapped_column(
@@ -108,6 +116,9 @@ class Question(TimestampMixin, Base):
     text: Mapped[str] = mapped_column(Text)
 
     focus_topic: Mapped[Optional[str]] = mapped_column(String(200))
+    difficulty: Mapped[int] = mapped_column(Integer, default=2, server_default="2")
+    rationale: Mapped[Optional[str]] = mapped_column(String(200))
+    target_criterion: Mapped[Optional[str]] = mapped_column(String(60))
 
     session: Mapped[InterviewSession] = relationship(back_populates="questions")
     answer: Mapped[Optional["Answer"]] = relationship(

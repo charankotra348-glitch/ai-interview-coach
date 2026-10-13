@@ -57,6 +57,9 @@ class QuestionOut(BaseModel):
     id: uuid.UUID
     position: int
     text: str
+    difficulty: int
+    is_follow_up: bool
+    rationale: str | None
     answer: str | None
     evaluation: EvaluationOut | None
 
@@ -74,6 +77,9 @@ class SummaryOut(BaseModel):
     answered: int
     average_overall: float | None
     criteria_averages: dict[str, float]
+    follow_ups: int
+    follow_up_target_delta: float | None
+    difficulty_path: list[int]
     llm_calls: int
     failed_llm_calls: int
     estimated_cost_usd: str
@@ -109,6 +115,9 @@ def _question_out(q: Question) -> QuestionOut:
         id=q.id,
         position=q.position,
         text=q.text,
+        difficulty=q.difficulty,
+        is_follow_up=q.parent_question_id is not None,
+        rationale=q.rationale,
         answer=q.answer.text if q.answer else None,
         evaluation=EvaluationOut(overall=ev.overall_score, rubric=ev.rubric, **ev.feedback) if ev else None,
     )
