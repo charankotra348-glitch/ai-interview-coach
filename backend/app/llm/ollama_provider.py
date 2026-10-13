@@ -1,7 +1,12 @@
+import json
+import logging
+
 import httpx
 
 from app.llm.errors import ProviderRequestError, ProviderTimeout, ProviderUnavailable
 from app.llm.types import LLMRequest, ProviderResponse
+
+logger = logging.getLogger("app.llm")
 
 
 class OllamaProvider:
@@ -27,6 +32,8 @@ class OllamaProvider:
                 "num_predict": request.max_tokens,
             },
         }
+        if request.response_format == "json":
+            payload["format"] = "json"
 
         try:
             response = self._client.post("/api/chat", json=payload, timeout=timeout_s)
@@ -35,6 +42,13 @@ class OllamaProvider:
         except httpx.TransportError as exc:  # Ollama not running
             raise ProviderUnavailable() from exc
 
+        if response.status_code >= 400:
+            logger.warning(json.dumps({
+                "event": "provider_error",
+                "provider": "ollama",
+                "status": response.status_code,
+                "detail": response.text[:300],
+            }))
         if response.status_code >= 500:
             raise ProviderUnavailable()
         if response.status_code >= 400:  # e.g. 404: model not pulled

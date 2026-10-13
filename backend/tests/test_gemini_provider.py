@@ -141,3 +141,8 @@ def test_timeout_below_gemini_minimum_is_rejected_at_startup():
 
     with pytest.raises(ValidationError):
         Settings(llm_timeout_s=1)    
+
+def test_json_mode_is_requested():
+    provider, sdk = provider_returning(reply())
+    call(provider, request(response_format="json"))
+    assert sdk.kwargs["config"].response_mime_type == "application/json"

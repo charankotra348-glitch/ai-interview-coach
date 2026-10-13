@@ -16,6 +16,7 @@ class LLMRequest(BaseModel):
     system: str | None = None
     max_tokens: int = Field(default=1024, gt=0, le=8192)
     temperature: float = Field(default=0.0, ge=0.0, le=1.0)
+    response_format: Literal["text", "json"] = "text"
     session_id: UUID | None = None
 
 

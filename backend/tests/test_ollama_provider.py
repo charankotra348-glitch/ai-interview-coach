@@ -89,3 +89,13 @@ def test_missing_model_is_a_request_error():
 def test_server_error_is_unavailable():
     with pytest.raises(ProviderUnavailable):
         call(provider_with(lambda r: httpx.Response(500)))
+
+def test_json_mode_is_requested():
+    seen = {}
+
+    def handler(req):
+        seen.update(json.loads(req.content))
+        return chat_reply()
+
+    call(provider_with(handler), request(response_format="json"))
+    assert seen["format"] == "json"
