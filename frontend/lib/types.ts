@@ -46,3 +46,50 @@ export type SessionItem = {
   answered: number;
   created_at: string;
 };
+
+
+export type RubricItem = { name: string; score: number; evidence: string; note: string };
+
+export type Evaluation = {
+  overall: number;
+  rubric: RubricItem[];
+  strengths: string[];
+  improvements: string[];
+  feedback_source: "model" | "derived";
+  follow_up_question: string;
+  ungrounded_evidence: number;
+};
+
+export type Question = {
+  id: string;
+  position: number;
+  text: string;
+  difficulty: number;
+  is_follow_up: boolean;
+  rationale: string | null;
+  answer: string | null;
+  evaluation: Evaluation | null;
+};
+
+export type Session = {
+  id: string;
+  mode: Mode;
+  status: "active" | "completed" | "abandoned";
+  target_role: string;
+  max_questions: number;
+  questions: Question[];
+};
+
+export type Summary = {
+  answered: number;
+  average_overall: number | null;
+  criteria_averages: Record<string, number>;
+  follow_ups: number;
+  follow_up_target_delta: number | null;
+  difficulty_path: number[];
+  llm_calls: number;
+  failed_llm_calls: number;
+  estimated_cost_usd: string;
+  calls_without_cost: number;
+  llm_latency_ms: number;
+};

@@ -13,6 +13,7 @@
   --mark: #ffe07a;
   --mark-ink: #18202e;
   --warn: #b4441c;
+  --chart: #2343c4;
   --background: var(--paper);
   --foreground: var(--ink);
 }
@@ -29,6 +30,7 @@
     --mark: #6b5a12;
     --mark-ink: #fff3c4;
     --warn: #ff9a6b;
+    --chart: #6f86f0;   /* stepped down from the accent: validated for bars on the dark surface */
   }
 }
 
@@ -45,6 +47,7 @@
   --color-mark: var(--mark);
   --color-mark-ink: var(--mark-ink);
   --color-warn: var(--warn);
+  --color-chart: var(--chart);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
