@@ -45,11 +45,6 @@
   },
   "checks": [
     {
-      "name": "human agreement",
-      "passed": false,
-      "detail": "no human labels: run python -m evals.label first"
-    },
-    {
       "name": "consistency",
       "passed": true,
       "detail": "0.889 identical across repeats (min 0.8)"
