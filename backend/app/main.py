@@ -5,7 +5,7 @@ import uuid
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-
+from app.api import auth, health, profiles, sessions
 from app.api import health, profiles, sessions
 from app.config import settings
 from app.ingest.extract import DocumentError
@@ -77,9 +77,11 @@ def create_app() -> FastAPI:
                       retryable=True)
 
     app.include_router(health.router)
+    app.include_router(auth.router)
     app.include_router(profiles.router)
     app.include_router(sessions.router)
     return app
+  
 
 
 app = create_app()

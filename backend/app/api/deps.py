@@ -1,30 +1,40 @@
 from functools import lru_cache
 
 from fastapi import Depends, HTTPException
-from sqlalchemy import select
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
-from app.config import settings
+from app.auth.tokens import InvalidToken, decode_access_token
 from app.db.models import User
 from app.db.session import get_db
 from app.llm.client import LLMClient
 
-DEV_ENVIRONMENTS = {"local", "ci", "test"}
-DEV_EMAIL = "dev@local.test"
+# Reads "Authorization: Bearer <token>". tokenUrl also powers the Authorize button in /docs.
+bearer_token = OAuth2PasswordBearer(tokenUrl="/auth/token", auto_error=False)
 
 
-def get_current_user(db: Session = Depends(get_db)) -> User:
-    """Temporary until Step 7 adds real authentication. Refuses to run outside development."""
-    if settings.environment not in DEV_ENVIRONMENTS:
-        raise HTTPException(status_code=401, detail={
-            "code": "unauthenticated", "message": "Authentication required.",
-        })
-    user = db.scalar(select(User).where(User.email == DEV_EMAIL))
-    if user is None:
-        user = User(email=DEV_EMAIL, password_hash="!")  # "!" can never match a real password
-        db.add(user)
-        db.commit()
-        db.refresh(user)
+def unauthorized(message: str = "Not authenticated.") -> HTTPException:
+    return HTTPException(
+        status_code=401,
+        detail={"code": "unauthenticated", "message": message},
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+def get_current_user(
+    token: str | None = Depends(bearer_token),
+    db: Session = Depends(get_db),
+) -> User:
+    """The user a valid access token belongs to. Every failure is the same 401."""
+    if not token:
+        raise unauthorized()
+    try:
+        user_id = decode_access_token(token)
+    except InvalidToken:
+        raise unauthorized("Invalid or expired token.")
+    user = db.get(User, user_id)
+    if user is None:  # the account was deleted after the token was issued
+        raise unauthorized("Invalid or expired token.")
     return user
 
 

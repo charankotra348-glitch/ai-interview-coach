@@ -41,3 +41,17 @@ def db(migrated_engine):
     session.close()
     transaction.rollback()
     connection.close()
+
+
+@pytest.fixture
+def fast_hashing(monkeypatch):
+    """Cheap Argon2 settings so API tests don't spend ~100 ms per sign-up or login.
+    tests/test_auth.py checks the real production settings."""
+    from pwdlib import PasswordHash
+    from pwdlib.hashers.argon2 import Argon2Hasher
+
+    from app.auth import passwords
+
+    monkeypatch.setattr(passwords, "_hasher", PasswordHash((
+        Argon2Hasher(time_cost=1, memory_cost=1024, parallelism=1),
+    )))

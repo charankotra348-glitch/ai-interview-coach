@@ -4,7 +4,6 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api import deps
 from app.api.deps import get_llm_client
 from app.db.models import CandidateProfileRecord, JobProfileRecord, User
 from app.db.session import get_db
@@ -14,6 +13,7 @@ from app.llm.fake import FakeProvider
 from app.llm.pricing import PriceTable
 from app.llm.types import ProviderResponse
 from app.main import create_app
+from tests.auth_helpers import EMAIL, sign_in
 
 pytestmark = pytest.mark.integration
 
@@ -41,8 +41,8 @@ def reply(obj) -> ProviderResponse:
 
 
 @pytest.fixture
-def api(db):
-    """Build a TestClient whose LLM plays back the given replies, in order, across requests."""
+def api(db, fast_hashing):
+    """A signed-in TestClient whose LLM plays back the given replies, in order, across requests."""
     def make(*replies):
         provider = FakeProvider(list(replies))
         llm = LLMClient(provider, model="fake-1",
@@ -50,7 +50,9 @@ def api(db):
         app = create_app()
         app.dependency_overrides[get_db] = lambda: db
         app.dependency_overrides[get_llm_client] = lambda: llm
-        return TestClient(app)
+        client = TestClient(app)
+        sign_in(client)
+        return client
     return make
 
 
@@ -69,7 +71,7 @@ def test_resume_upload_creates_a_stored_profile(api, db):
     assert body["dropped_count"] == 0
 
     record = db.get(CandidateProfileRecord, body["id"])
-    assert db.get(User, record.user_id).email == deps.DEV_EMAIL
+    assert db.get(User, record.user_id).email == EMAIL   # the signed-in user owns it
 
 
 def test_job_from_pasted_text(api):
@@ -141,10 +143,10 @@ def test_cannot_use_another_users_profile(api, db):
     assert response.status_code == 404
 
 
-def test_dev_user_is_refused_outside_development(api, monkeypatch):
-    monkeypatch.setattr(deps.settings, "environment", "production")
-    response = upload_resume(api(reply(CANDIDATE_REPLY)))
-    assert response.status_code == 401
+def test_upload_without_a_token_is_401(api):
+    client = api(reply(CANDIDATE_REPLY))
+    del client.headers["Authorization"]
+    assert upload_resume(client).status_code == 401
 
 
 # --- metric -----------------------------------------------------------------------

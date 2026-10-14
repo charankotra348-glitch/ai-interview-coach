@@ -14,6 +14,7 @@ from app.llm.fake import FakeProvider
 from app.llm.pricing import PriceTable
 from app.llm.types import ProviderResponse
 from app.main import create_app
+from tests.auth_helpers import sign_in
 
 pytestmark = pytest.mark.integration
 
@@ -39,7 +40,7 @@ def eval_reply(default, **overrides):
 
 
 @pytest.fixture
-def api(db):
+def api(db, fast_hashing):
     def make(*replies):
         provider = FakeProvider(list(replies))
         llm = LLMClient(provider, model="fake-1",
@@ -47,7 +48,9 @@ def api(db):
         app = create_app()
         app.dependency_overrides[get_db] = lambda: db
         app.dependency_overrides[get_llm_client] = lambda: llm
-        return TestClient(app), provider
+        client = TestClient(app)
+        sign_in(client)
+        return client, provider
     return make
 
 
