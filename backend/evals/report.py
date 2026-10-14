@@ -107,7 +107,8 @@ def check_gate(report: dict, thresholds: dict, baseline: dict | None = None) -> 
 
     agree = report["agreement"]
     if agree is None:
-        check("human agreement", False, "no human labels: run python -m evals.label first")
+        if thresholds["require_human_labels"]:
+            check("human agreement", False, "no human labels: run python -m evals.label first")
     else:
         check("QWK", agree["qwk"] >= thresholds["min_qwk"],
               f"{agree['qwk']:.3f} (min {thresholds['min_qwk']})")
@@ -188,6 +189,9 @@ def render_markdown(meta: dict, report: dict, checks: list[dict], status: str) -
             *[f"| {name} | {a['n']} | {_fmt(a['mae'])} | {a['bias']:+.2f} | {_fmt(a['exact'])} |"
               for name, a in report["by_criterion"].items()],
         ]
+    else:
+        lines += ["", "## Agreement with a human", "",
+                  "Not measured: no human labels were given for this run."]    
     consistency = report["consistency"]
     lines += [
         "", "## Consistency", "",

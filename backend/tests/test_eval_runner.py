@@ -120,7 +120,7 @@ def test_without_gate_a_failing_run_still_exits_0(evals_dir):
     grader = ScriptedGrader({"good": [3, 3, 3, 3, 3], "Ignore": [5, 5, 5, 5, 5]})
     assert run_main(evals_dir, grader) == 0
     checks = {c["name"]: c for c in saved_report(evals_dir)["checks"]}
-    assert not checks["human agreement"]["passed"]            # no labels: never a pass
+    assert not checks["expectations"]["passed"]            # no labels: never a pass
 
 
 def test_regression_against_a_baseline(evals_dir, tmp_path):
@@ -141,3 +141,22 @@ def test_a_rejected_api_key_stops_the_run(evals_dir):
 def test_rater_without_labels_is_an_error(evals_dir):
     with pytest.raises(SystemExit):
         run_main(evals_dir, ScriptedGrader({}), "--rater", "nobody")
+
+
+
+def test_without_labels_agreement_is_not_measured(evals_dir):
+    grader = ScriptedGrader({"good": [3, 3, 3, 3, 3], "Ignore": [1, 1, 1, 1, 1]})
+    assert run_main(evals_dir, grader, "--gate") == 0          # passes on what is measured
+    saved = saved_report(evals_dir)
+    assert "QWK" not in {c["name"] for c in saved["checks"]}
+    [md] = (evals_dir / "reports").glob("*.md")
+    assert "Not measured" in md.read_text()
+
+
+def test_labels_can_be_required(evals_dir, monkeypatch):
+    strict = json.loads(runner.THRESHOLDS_FILE.read_text()) | {"require_human_labels": True}
+    path = evals_dir / "strict.json"
+    path.write_text(json.dumps(strict))
+    monkeypatch.setattr(runner, "THRESHOLDS_FILE", path)
+    grader = ScriptedGrader({"good": [3, 3, 3, 3, 3], "Ignore": [1, 1, 1, 1, 1]})
+    assert run_main(evals_dir, grader, "--gate") == 1

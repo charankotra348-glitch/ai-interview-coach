@@ -1,6 +1,7 @@
 {
   "status": "hypothesis",
   "note": "Starting guesses, not validated. Decision 003: replace them with values set from measured human-to-human agreement on the same cases.",
+  "require_human_labels": false,
   "min_qwk": 0.6,
   "max_mae": 0.75,
   "max_abs_bias": 0.5,
