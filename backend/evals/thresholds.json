@@ -1,0 +1,14 @@
+{
+  "status": "hypothesis",
+  "note": "Starting guesses, not validated. Decision 003: replace them with values set from measured human-to-human agreement on the same cases.",
+  "min_qwk": 0.6,
+  "max_mae": 0.75,
+  "max_abs_bias": 0.5,
+  "min_within_one": 0.9,
+  "min_identical_rate": 0.8,
+  "max_failure_rate": 0.0,
+  "regression": {
+    "qwk": 0.05,
+    "mae": 0.1
+  }
+}
