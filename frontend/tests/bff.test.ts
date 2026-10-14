@@ -25,7 +25,7 @@ function mockBackend(status: number, body: unknown) {
 
 const params = (...path: string[]) => ({ params: Promise.resolve({ path }) });
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe("login", () => {
   it("keeps the token in an httpOnly cookie and out of the response body", async () => {
@@ -125,5 +125,33 @@ describe("backend proxy", () => {
     const fetchMock = mockBackend(200, {});
     await backendGet(request("/api/backend/x", { cookie: "jwt-123" }), params("..", "@evil.example", "x"));
     expect(fetchMock.mock.calls[0][0]).toMatch(/^http:\/\/127\.0\.0\.1:8000\//);
+  });
+});
+
+
+describe("backend unreachable", () => {
+  function backendDown() {
+    const fetchMock = vi.fn().mockRejectedValue(new TypeError("fetch failed"));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(console, "error").mockImplementation(() => {});   // keep the expected log out of test output
+  }
+
+  it("turns a failed login connection into a clear, retryable 503", async () => {
+    backendDown();
+    const response = await login(request("/api/auth/login", {
+      method: "POST", body: JSON.stringify({ email: "a@example.com", password: "a long enough password" }),
+    }));
+    expect(response.status).toBe(503);
+    const detail = (await response.json()).detail;
+    expect(detail.code).toBe("backend_unavailable");
+    expect(detail.retryable).toBe(true);
+    expect(response.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("does the same for proxied API calls, and keeps the session cookie", async () => {
+    backendDown();
+    const response = await backendGet(request("/api/backend/auth/me", { cookie: "jwt-123" }), params("auth", "me"));
+    expect(response.status).toBe(503);
+    expect(response.headers.get("set-cookie")).toBeNull();     // an outage is not a logout
   });
 });

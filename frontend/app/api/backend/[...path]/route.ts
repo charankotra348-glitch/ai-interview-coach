@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { BACKEND_URL, TOKEN_COOKIE } from "@/lib/session";
 import { isSameOrigin } from "@/lib/origin";
+import { fetchBackend } from "@/lib/backend-fetch";
 
 /**
  * Forwards /api/backend/<path> to the FastAPI backend, adding the token from the cookie.
@@ -22,7 +23,7 @@ async function forward(request: NextRequest, ctx: { params: Promise<{ path: stri
   const contentType = request.headers.get("content-type");
   if (contentType) headers.set("Content-Type", contentType);   // keeps the multipart boundary for uploads
 
-  const backend = await fetch(url, {
+  const backend = await fetchBackend(url, {
     method: request.method,
     headers,
     body: request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer(),

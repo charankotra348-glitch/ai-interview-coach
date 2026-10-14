@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { BACKEND_URL, TOKEN_COOKIE, tokenCookieOptions } from "@/lib/session";
 import { isSameOrigin } from "@/lib/origin";
+import { fetchBackend } from "@/lib/backend-fetch";
 
 export async function POST(request: NextRequest) {
   if (!isSameOrigin(request)) {
@@ -9,7 +10,7 @@ export async function POST(request: NextRequest) {
   const { email, password } = await request.json().catch(() => ({}));
 
   // FastAPI's login is the OAuth2 password flow: form fields "username" and "password".
-  const backend = await fetch(`${BACKEND_URL}/auth/token`, {
+  const backend = await fetchBackend(`${BACKEND_URL}/auth/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ username: String(email ?? ""), password: String(password ?? "") }),

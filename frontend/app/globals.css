@@ -1,26 +1,62 @@
 @import "tailwindcss";
 
+/* The candidate's prep sheet: cool paper, ink, pencil-grey notes, a highlighter for
+   what you already have, and one ink-blue for the single action that matters. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --paper: #f5f7fa;
+  --surface: #ffffff;
+  --ink: #18202e;
+  --pencil: #5c6678;
+  --rule: #dce1e8;
+  --accent: #2343c4;
+  --accent-ink: #ffffff;
+  --mark: #ffe07a;
+  --mark-ink: #18202e;
+  --warn: #b4441c;
+  --background: var(--paper);
+  --foreground: var(--ink);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0f141c;
+    --surface: #161d28;
+    --ink: #e7ebf2;
+    --pencil: #9aa4b5;
+    --rule: #2a3342;
+    --accent: #8ea3ff;
+    --accent-ink: #0f141c;
+    --mark: #6b5a12;
+    --mark-ink: #fff3c4;
+    --warn: #ff9a6b;
+  }
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-pencil: var(--pencil);
+  --color-rule: var(--rule);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-mark: var(--mark);
+  --color-mark-ink: var(--mark-ink);
+  --color-warn: var(--warn);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Visible keyboard focus everywhere, in the accent colour. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
