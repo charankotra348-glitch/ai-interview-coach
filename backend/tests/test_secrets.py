@@ -22,3 +22,19 @@ def test_no_api_keys_in_tracked_files():
         if any(p.search(text) for p in KEY_PATTERNS):
             leaks.append(name)
     assert leaks == []
+
+
+EXAMPLE_FILE = REPO / "backend" / ".env.example"
+SECRET_NAME = re.compile(r"(KEY|SECRET|PASSWORD|TOKEN)$")
+
+
+def test_env_example_has_no_secret_values():
+    """.env.example is public: secret settings must be listed there, but left empty."""
+    leaks = []
+    for line in EXAMPLE_FILE.read_text().splitlines():
+        if "=" not in line or line.lstrip().startswith("#"):
+            continue
+        name, value = (part.strip() for part in line.split("=", 1))
+        if SECRET_NAME.search(name) and value:
+            leaks.append(name)
+    assert leaks == [], f"secret values in .env.example: {leaks}"
