@@ -1,8 +1,10 @@
 import uuid
 from dataclasses import asdict
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_llm_client
@@ -19,6 +21,7 @@ router = APIRouter(prefix="/profiles", tags=["profiles"])
 
 class ProfileOut(BaseModel):
     id: uuid.UUID
+    created_at: datetime
     profile: dict
     source_format: str
     truncated: bool
@@ -41,11 +44,42 @@ def _read_upload(file: UploadFile) -> bytes:
 def _out(record) -> ProfileOut:
     return ProfileOut(
         id=record.id,
+        created_at=record.created_at,
         profile=record.data,
         source_format=record.source_format,
         truncated=record.truncated,
         dropped_count=record.dropped_count,
     )
+
+
+def _list(db: Session, model, user: User, limit: int) -> list[ProfileOut]:
+    records = db.scalars(
+        select(model)
+        .where(model.user_id == user.id)
+        .order_by(model.created_at.desc(), model.id.desc())
+        .limit(limit)
+    ).all()
+    return [_out(r) for r in records]
+
+
+@router.get("/candidate", response_model=list[ProfileOut])
+def list_candidate_profiles(
+    limit: int = Query(default=10, ge=1, le=50),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Your resume profiles, newest first."""
+    return _list(db, CandidateProfileRecord, user, limit)
+
+
+@router.get("/job", response_model=list[ProfileOut])
+def list_job_profiles(
+    limit: int = Query(default=10, ge=1, le=50),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Your job profiles, newest first."""
+    return _list(db, JobProfileRecord, user, limit)
 
 
 @router.post("/candidate", response_model=ProfileOut, status_code=201)

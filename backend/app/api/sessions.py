@@ -1,9 +1,11 @@
 import uuid
+from datetime import datetime
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_user, get_llm_client
 from app.db.models import (
@@ -71,6 +73,16 @@ class SessionOut(BaseModel):
     target_role: str
     max_questions: int
     questions: list[QuestionOut]
+
+
+class SessionListItem(BaseModel):
+    id: uuid.UUID
+    mode: str
+    status: str
+    target_role: str
+    max_questions: int
+    answered: int
+    created_at: datetime
 
 
 class SummaryOut(BaseModel):
@@ -159,6 +171,30 @@ def create_session(
     db.commit()
     db.refresh(s)
     return _session_out(s)
+
+
+@router.get("", response_model=list[SessionListItem])
+def list_sessions(
+    limit: int = Query(default=20, ge=1, le=100),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Your interviews, newest first."""
+    sessions = db.scalars(
+        select(InterviewSession)
+        .where(InterviewSession.user_id == user.id)
+        .options(selectinload(InterviewSession.questions).selectinload(Question.answer))
+        .order_by(InterviewSession.created_at.desc(), InterviewSession.id.desc())
+        .limit(limit)
+    ).all()
+    return [
+        SessionListItem(
+            id=s.id, mode=s.mode, status=s.status, target_role=s.target_role,
+            max_questions=s.max_questions, created_at=s.created_at,
+            answered=sum(1 for q in s.questions if q.answer is not None),
+        )
+        for s in sessions
+    ]
 
 
 @router.post("/{session_id}/questions", response_model=QuestionOut)

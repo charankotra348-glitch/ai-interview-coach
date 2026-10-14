@@ -32,6 +32,7 @@ CATEGORIES = {
     "deep learning frameworks": {"pytorch", "tensorflow", "keras", "jax"},
     "ml frameworks": {"pytorch", "tensorflow", "keras", "jax", "scikit-learn"},
     "relational databases": {"postgresql", "mysql", "sqlite", "sql server", "oracle"},
+    "sql": {"postgresql", "mysql", "sqlite", "sql server", "oracle"},   # every one of them is used through SQL    
     "containerization": {"docker", "kubernetes", "podman"},
 }
 

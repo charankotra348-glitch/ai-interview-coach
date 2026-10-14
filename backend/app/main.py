@@ -5,8 +5,9 @@ import uuid
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import OperationalError
+
 from app.api import auth, health, profiles, sessions
-from app.api import health, profiles, sessions
 from app.config import settings
 from app.ingest.extract import DocumentError
 from app.llm.errors import LLMCallFailed
@@ -64,6 +65,14 @@ def create_app() -> FastAPI:
         return _error(502, "extraction_failed",
                       "The AI returned an unusable result. Please try again.")
 
+    @app.exception_handler(OperationalError)
+    async def database_unavailable(request: Request, exc: OperationalError):
+        # The database is down or unreachable: say so, instead of a bare 500.
+        logger.error(json.dumps({"event": "database_unavailable", "error": type(exc.orig).__name__}))
+        return _error(503, "database_unavailable",
+                      "The service is unavailable right now. Please try again in a moment.",
+                      retryable=True)
+
     @app.exception_handler(LLMCallFailed)
     async def llm_unavailable(request: Request, exc: LLMCallFailed):
         logger.warning(json.dumps({
@@ -81,7 +90,6 @@ def create_app() -> FastAPI:
     app.include_router(profiles.router)
     app.include_router(sessions.router)
     return app
-  
 
 
 app = create_app()

@@ -267,3 +267,12 @@ def test_invented_job_requirement_is_dropped():
     result, dropped = ground_job(job, "Required: Python and SQL")
     assert result.required_skills == ["Python"]
     assert dropped == ["Go"]
+
+
+
+def test_sql_is_satisfied_by_a_sql_database():
+    candidate = CandidateProfile(skills=["PostgreSQL"])
+    job = JobProfile(required_skills=["SQL", "Kubernetes"])
+    gap = compute_gap(candidate, job)
+    assert [(m.requirement, m.via) for m in gap.matched] == [("SQL", "postgresql")]
+    assert gap.missing_required == ["Kubernetes"]    
