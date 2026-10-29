@@ -13,4 +13,4 @@ python-multipart>=0.0.9
 langgraph>=1.0
 pwdlib[argon2]>=0.2
 pyjwt>=2.10
-email-validator>=2.2
+email-validator>=2.2boto3>=1.35

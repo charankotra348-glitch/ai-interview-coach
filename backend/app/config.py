@@ -17,13 +17,17 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     database_url: str = "postgresql+psycopg://coach:coach@localhost:5433/coach"
 
-    llm_provider: Literal["gemini", "ollama"] = "gemini"
+    llm_provider: Literal["gemini", "ollama", "bedrock"] = "gemini"
     llm_timeout_s: float = Field(default=60.0, ge=10)
     llm_max_attempts: int = 3
     llm_budget_s: float = Field(default=45.0, ge=10)
 
     gemini_api_key: SecretStr | None = None
     gemini_model: str = "gemini-3.8-flash"
+
+    # Amazon Bedrock (the AWS deployment): the task's IAM role signs requests, no key needed
+    bedrock_region: str = "us-east-1"
+    bedrock_model: str = "us.amazon.nova-lite-v1:0"
 
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.2"

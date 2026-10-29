@@ -1,0 +1,6 @@
+# Copy to terraform.tfvars (git-ignored) and fill in.
+alert_email        = "you@example.com"
+monthly_budget_usd = 10
+
+# region       = "us-east-1"
+# llm_provider = "bedrock"     # or "gemini", then also set gemini_api_key

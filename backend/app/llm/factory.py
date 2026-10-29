@@ -11,6 +11,12 @@ def _provider_and_model(provider: str, model: str | None):
 
         return OllamaProvider(settings.ollama_base_url), model or settings.ollama_model
 
+    if provider == "bedrock":
+        from app.llm.bedrock_provider import BedrockProvider
+
+        return (BedrockProvider(settings.bedrock_region, timeout_s=settings.llm_timeout_s),
+                model or settings.bedrock_model)
+
     if provider != "gemini":
         raise ValueError(f"unknown LLM provider: {provider}")
 

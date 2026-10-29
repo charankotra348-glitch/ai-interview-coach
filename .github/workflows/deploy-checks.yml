@@ -1,0 +1,41 @@
+name: Deploy Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  terraform:
+    name: Terraform format and validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/aws
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.9"
+      - name: Format
+        run: terraform fmt -check -diff
+      - name: Init (no backend, no credentials)
+        run: terraform init -backend=false -input=false
+      - name: Validate
+        run: terraform validate
+
+  images:
+    name: Production images build and start
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the API image
+        run: docker build -t coach-backend ./backend
+      - name: Build the web image
+        run: docker build -t coach-frontend ./frontend
+      - name: The web image serves the sign-in page
+        run: |
+          docker run -d --name web -p 3000:3000 coach-frontend
+          for i in $(seq 30); do curl -fs localhost:3000/login >/dev/null && break; sleep 1; done
+          curl -fs -o /dev/null -w "GET /login -> %{http_code}\n" localhost:3000/login
