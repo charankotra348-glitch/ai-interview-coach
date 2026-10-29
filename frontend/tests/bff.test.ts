@@ -68,6 +68,34 @@ describe("login", () => {
   });
 });
 
+describe("behind CloudFront and a load balancer", () => {
+  function proxied(origin: string, host = "d111.cloudfront.net") {
+    // the standalone server sees its own address in the URL; the browser's host arrives in Host
+    return new NextRequest("http://localhost:3000/api/auth/login", {
+      method: "POST", body: "{}", headers: { origin, host, "content-type": "application/json" },
+    });
+  }
+
+  it("accepts a login from the site's own https origin", async () => {
+    mockBackend(401, { detail: { code: "invalid_credentials" } });
+    const { POST } = await import("@/app/api/auth/login/route");
+    const response = await POST(proxied("https://d111.cloudfront.net"));
+    expect(response.status).toBe(401);   // reached the backend: not refused as cross-site
+  });
+
+  it("still refuses another site", async () => {
+    const { POST } = await import("@/app/api/auth/login/route");
+    const response = await POST(proxied("https://evil.example"));
+    expect(response.status).toBe(403);
+  });
+
+  it("refuses an Origin that isn't a URL", async () => {
+    const { POST } = await import("@/app/api/auth/login/route");
+    const response = await POST(proxied("null"));
+    expect(response.status).toBe(403);
+  });
+});
+
 describe("logout", () => {
   it("expires the cookie", async () => {
     const response = await logout(request("/api/auth/logout", { method: "POST", cookie: "jwt-123" }));
